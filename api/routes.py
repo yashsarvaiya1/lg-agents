@@ -6,6 +6,7 @@ from agents.serial import serial_graph
 from agents.conditional import conditional_graph
 from agents.loop import loop_graph
 from agents.bot import bot_graph
+from agents.react import react_graph
 
 router = APIRouter(prefix="/agents")
 
@@ -25,6 +26,10 @@ class LoopPayload(BaseModel):
     limit: int
 
 class BotPayload(BaseModel):
+    message: str
+    thread_id: str = ""
+
+class ReactPayload(BaseModel):
     message: str
     thread_id: str = ""
 
@@ -60,3 +65,10 @@ def run_bot(payload: BotPayload):
     config = {"configurable": {"thread_id": thread_id}}
     result = bot_graph.invoke({"messages":[{"role":"user","content":payload.message}]},config=config)
     return {"thread_id":thread_id,"response": result["messages"][-1].content}
+
+@router.post("/react")
+def run_react(payload: ReactPayload):
+    thread_id = payload.thread_id or str(uuid.uuid4())
+    config = {"configurable": {"thread_id": thread_id}}
+    result = react_graph.invoke({"messages": [{"role": "user", "content": payload.message}]},config=config)
+    return {"thread_id": thread_id, "response": result["messages"][-1].content}
