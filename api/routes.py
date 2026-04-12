@@ -5,6 +5,7 @@ from agents.simple import simple_graph
 from agents.serial import serial_graph
 from agents.conditional import conditional_graph
 from agents.loop import loop_graph
+from agents.bot import bot_graph
 
 router = APIRouter(prefix="/agents")
 
@@ -22,6 +23,10 @@ class ConditionalPayload(BaseModel):
 
 class LoopPayload(BaseModel):
     limit: int
+
+class BotPayload(BaseModel):
+    message: str
+    thread_id: str = ""
 
 @router.post("/simple")
 def run_simple(payload: SimplePayload):
@@ -48,3 +53,10 @@ def run_conditional(payload: ConditionalPayload):
 def run_loop(payload: LoopPayload):
     result = loop_graph.invoke({"counter":0,"limit":payload.limit,"items":[]})
     return {"counter":result["counter"],"limit":result["limit"],"items":result["items"]}
+
+@router.post("/bot")
+def run_bot(payload: BotPayload):
+    thread_id = payload.thread_id or str(uuid.uuid4())
+    config = {"configurable": {"thread_id": thread_id}}
+    result = bot_graph.invoke({"messages":[{"role":"user","content":payload.message}]},config=config)
+    return {"thread_id":thread_id,"response": result["messages"][-1].content}
