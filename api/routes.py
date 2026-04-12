@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from agents.simple import simple_graph
 from agents.serial import serial_graph
 from agents.conditional import conditional_graph
+from agents.loop import loop_graph
 
 router = APIRouter(prefix="/agents")
 
@@ -14,11 +15,13 @@ class SerialPayload(BaseModel):
     name: str
     thread_id: str
 
-
 class ConditionalPayload(BaseModel):
     num1: int
     num2: int
     operation: str
+
+class LoopPayload(BaseModel):
+    limit: int
 
 @router.post("/simple")
 def run_simple(payload: SimplePayload):
@@ -41,3 +44,7 @@ def run_conditional(payload: ConditionalPayload):
     })
     return {"result": result["result"]}
 
+@router.post("/loop")
+def run_loop(payload: LoopPayload):
+    result = loop_graph.invoke({"counter":0,"limit":payload.limit,"items":[]})
+    return {"counter":result["counter"],"limit":result["limit"],"items":result["items"]}
