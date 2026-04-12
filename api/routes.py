@@ -11,6 +11,7 @@ class SimplePayload(BaseModel):
 
 class SerialPayload(BaseModel):
     name: str
+    thread_id: str
 
 @router.post("/simple")
 def run_simple(payload: SimplePayload):
@@ -19,6 +20,8 @@ def run_simple(payload: SimplePayload):
 
 @router.post("/serial")
 def run_serial(payload: SerialPayload):
-    result = serial_graph.invoke({"name":payload.name,"greeting":""})
-    return {"name":result["name"],"greeting":result["greeting"]}
+    thread_id = payload.thread_id or str(uuid.uuid4())
+    config = {"configurable": {"thread_id":thread_id}}    
+    result = serial_graph.invoke({"name":payload.name,"greeting":""},config=config)
+    return {"name":result["name"],"greeting":result["greeting"],"messages":result["messages"]}
 
