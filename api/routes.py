@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 from agents.simple import simple_graph
 from agents.serial import serial_graph
+from agents.conditional import conditional_graph
 
 router = APIRouter(prefix="/agents")
 
@@ -12,6 +13,12 @@ class SimplePayload(BaseModel):
 class SerialPayload(BaseModel):
     name: str
     thread_id: str
+
+
+class ConditionalPayload(BaseModel):
+    num1: int
+    num2: int
+    operation: str
 
 @router.post("/simple")
 def run_simple(payload: SimplePayload):
@@ -24,4 +31,13 @@ def run_serial(payload: SerialPayload):
     config = {"configurable": {"thread_id":thread_id}}    
     result = serial_graph.invoke({"name":payload.name,"greeting":""},config=config)
     return {"name":result["name"],"greeting":result["greeting"],"messages":result["messages"]}
+
+@router.post("/conditional")
+def run_conditional(payload: ConditionalPayload):
+    result = conditional_graph.invoke({
+        "num1": payload.num1,
+        "num2": payload.num2,
+        "operation": payload.operation
+    })
+    return {"result": result["result"]}
 
