@@ -10,6 +10,8 @@ from agents.loop import loop_graph
 from agents.bot import bot_graph
 from agents.react import react_graph
 from agents.humanloopnode import humanloop_graph
+from agents.humanlooptool import humanlooptool_graph
+from agents.drafter import drafter_graph
 
 router = APIRouter(prefix="/agents")
 
@@ -42,6 +44,14 @@ class HumanLoopPayload(BaseModel):
 class ResumePayload(BaseModel):
     thread_id: str
     human_input: str
+
+class HumanLoopToolPayload(BaseModel):
+    message: str
+    thread_id: str = ""
+
+class DrafterPayload(BaseModel):
+    message: str
+    thread_id: str = ""
     
 @router.post("/simple")
 def run_simple(payload: SimplePayload):
@@ -104,3 +114,55 @@ def resume_humanloop(payload: ResumePayload):
         config=config
     )
     return {"greeting": result["greeting"], "name": result["name"]}
+
+@router.post("/humanlooptool/start")
+def start_humanlooptool(payload: HumanLoopToolPayload):
+    thread_id = payload.thread_id or str(uuid.uuid4())
+    config = {"configurable": {"thread_id": thread_id}}
+    result = humanlooptool_graph.invoke(
+        {"messages": [{"role": "user", "content": payload.message}], "name": None, "age": None, "greeting": None},
+        config=config
+    )
+    if result.get("__interrupt__"):
+        return {
+            "thread_id": thread_id,
+            "status": "interrupted",
+            "question": result["__interrupt__"][0].value["question"],
+            "messages": result["messages"]
+        }
+    return {"thread_id": thread_id, "status": "done", "greeting": result["greeting"],"messages": result["messages"]}
+
+@router.post("/humanlooptool/resume")
+def resume_humanlooptool(payload: ResumePayload):
+    config = {"configurable": {"thread_id": payload.thread_id}}
+    result = humanlooptool_graph.invoke(Command(resume=payload.human_input), config=config)
+    if result.get("__interrupt__"):
+        return {
+            "thread_id": payload.thread_id,
+            "status": "interrupted",
+            "question": result["__interrupt__"][0].value["question"]
+        }
+    return {"thread_id": payload.thread_id, "status": "done", "greeting": result["greeting"]}
+
+@router.post("/drafter/start")
+def start_drafter(payload: DrafterPayload):
+    thread_id = payload.thread_id or str(uuid.uuid4())
+    config = {"configurable": {"thread_id": thread_id}}
+    result = drafter_graph.invoke(
+        {"messages": [{"role": "user", "content": payload.message}]},
+        config=config
+    )
+    if result.get("__interrupt__"):
+        data = result["__interrupt__"][0].value
+        return {"thread_id": thread_id, "status": "interrupted", "draft": data["draft"], "question": data["message"]}
+    return {"thread_id": thread_id, "status": "done", "draft": result["draft"]}
+
+
+@router.post("/drafter/resume")
+def resume_drafter(payload: ResumePayload):
+    config = {"configurable": {"thread_id": payload.thread_id}}
+    result = drafter_graph.invoke(Command(resume=payload.human_input), config=config)
+    if result.get("__interrupt__"):
+        data = result["__interrupt__"][0].value
+        return {"thread_id": payload.thread_id, "status": "interrupted", "draft": data["draft"], "question": data["message"]}
+    return {"thread_id": payload.thread_id, "status": "done", "draft": result["draft"]}
