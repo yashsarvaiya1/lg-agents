@@ -12,6 +12,8 @@ from agents.react import react_graph
 from agents.humanloopnode import humanloop_graph
 from agents.humanlooptool import humanlooptool_graph
 from agents.drafter import drafter_graph
+from agents.subagent import subagent_graph
+from agents.supervisor import supervisor_graph
 
 router = APIRouter(prefix="/agents")
 
@@ -50,6 +52,14 @@ class HumanLoopToolPayload(BaseModel):
     thread_id: str = ""
 
 class DrafterPayload(BaseModel):
+    message: str
+    thread_id: str = ""
+
+class SubAgentPayload(BaseModel):
+    message: str
+    thread_id: str = ""
+
+class SupervisorPayload(BaseModel):
     message: str
     thread_id: str = ""
     
@@ -166,3 +176,24 @@ def resume_drafter(payload: ResumePayload):
         data = result["__interrupt__"][0].value
         return {"thread_id": payload.thread_id, "status": "interrupted", "draft": data["draft"], "question": data["message"]}
     return {"thread_id": payload.thread_id, "status": "done", "draft": result["draft"]}
+
+@router.post("/subagent")
+def run_subagent(payload: SubAgentPayload):
+    thread_id = payload.thread_id or str(uuid.uuid4())
+    config = {"configurable": {"thread_id": thread_id}}
+    result = subagent_graph.invoke(
+        {"messages": [{"role": "user", "content": payload.message}]},
+        config=config
+    )
+    return {"thread_id": thread_id, "response": result["messages"]}
+
+
+@router.post("/supervisor")
+def run_supervisor(payload: SupervisorPayload):
+    thread_id = payload.thread_id or str(uuid.uuid4())
+    config = {"configurable": {"thread_id": thread_id}}
+    result = supervisor_graph.invoke(
+        {"messages": [{"role": "user", "content": payload.message}]},
+        config=config
+    )
+    return {"thread_id": thread_id, "response": result["messages"]}
