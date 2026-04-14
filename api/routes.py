@@ -192,8 +192,16 @@ def run_subagent(payload: SubAgentPayload):
 def run_supervisor(payload: SupervisorPayload):
     thread_id = payload.thread_id or str(uuid.uuid4())
     config = {"configurable": {"thread_id": thread_id}}
-    result = supervisor_graph.invoke(
+    supervisor_graph.invoke(
         {"messages": [{"role": "user", "content": payload.message}]},
         config=config
     )
-    return {"thread_id": thread_id, "response": result["messages"]}
+    # imp use this it have the value of merged state after the invoke, invoke only returns updated staes
+    state = supervisor_graph.get_state(config)
+    return {
+        "thread_id": thread_id,
+        "response": state.values["messages"][-1].content,
+        "last_agent": state.values.get("last_agent"),
+        "last_result": state.values.get("last_result"),
+        "task_count": state.values.get("task_count")
+    }
