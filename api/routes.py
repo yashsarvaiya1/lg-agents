@@ -1,12 +1,15 @@
 import uuid
 from fastapi import APIRouter
 from pydantic import BaseModel
+from langgraph.types import Command
+from langgraph.errors import GraphInterrupt
 from agents.simple import simple_graph
 from agents.serial import serial_graph
 from agents.conditional import conditional_graph
 from agents.loop import loop_graph
 from agents.bot import bot_graph
 from agents.react import react_graph
+from agents.humanloopnode import humanloop_graph
 
 router = APIRouter(prefix="/agents")
 
@@ -33,6 +36,13 @@ class ReactPayload(BaseModel):
     message: str
     thread_id: str = ""
 
+class HumanLoopPayload(BaseModel):
+    thread_id: str
+
+class ResumePayload(BaseModel):
+    thread_id: str
+    human_input: str
+    
 @router.post("/simple")
 def run_simple(payload: SimplePayload):
     result = simple_graph.invoke({"messages": [{"role":"user","content":payload.message}]})
@@ -72,3 +82,25 @@ def run_react(payload: ReactPayload):
     config = {"configurable": {"thread_id": thread_id}}
     result = react_graph.invoke({"messages": [{"role": "user", "content": payload.message}]},config=config)
     return {"thread_id": thread_id, "response": result["messages"][-1].content}
+
+@router.post("/humanloop/start")
+def start_humanloop(payload: HumanLoopPayload):
+    thread_id = payload.thread_id or str(uuid.uuid4())
+    config = {"configurable": {"thread_id": thread_id}}
+    result = humanloop_graph.invoke({"messages": []}, config=config)
+    if result.get("__interrupt__"):
+        return {
+            "thread_id": thread_id,
+            "status": "interrupted",
+            "question": result["__interrupt__"][0].value
+        }
+    return {"thread_id": thread_id, "status": "done", "greeting": result["greeting"]}
+
+@router.post("/humanloop/resume")
+def resume_humanloop(payload: ResumePayload):
+    config = {"configurable": {"thread_id": payload.thread_id}}
+    result = humanloop_graph.invoke(
+        Command(resume=payload.human_input),
+        config=config
+    )
+    return {"greeting": result["greeting"], "name": result["name"]}
